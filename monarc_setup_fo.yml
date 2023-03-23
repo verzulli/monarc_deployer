@@ -1,0 +1,11 @@
+- hosts: "{{ ansible_limit | default(omit) }}"  
+  become: yes
+  become_user: root
+  become_method: sudo
+  roles:
+    - role: monarcfo
+      tags: fo
+  vars_files:
+    - _vault.yml
+    - vars.yml        
+

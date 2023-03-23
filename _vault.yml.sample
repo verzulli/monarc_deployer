@@ -1,0 +1,3 @@
+# here below you need to define the password to be used
+# to access monarc mariadb databases
+db_password: change_this_password

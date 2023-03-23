@@ -1,0 +1,259 @@
+---
+
+########################################
+# Create group and user (...to own the service)
+- name: Create group 'monarc'
+  group: 
+    name: monarc
+    gid: 300
+  become: True    
+
+- name: Add user 'monarc' with a specific uid and a primary group of 'monarc'
+  user:
+    name: monarc
+    comment: Monarc FrontOffice User
+    uid: 300
+    group: monarc
+    groups: "monarc"
+    home: "/home/monarc"
+    shell: "/bin/false"
+    append: yes
+  become: True
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+########################################################################
+# Creating folders, downloading and uncompressing releaseConfiguring MariaDB database and related content
+- name: create monarc main directory
+  file:
+    state: directory
+    path: /var/lib/monarc/
+    owner: monarc
+    group: monarc
+  become: True
+
+- name: create monarc releases directory
+  file:
+    state: directory
+    path: /var/lib/monarc/releases/
+
+- name: create data directory
+  file:
+    state: directory
+    path: "/var/lib/monarc/fo-data"
+    owner: "www-data"
+  become: True
+
+- name: download release
+  get_url:
+    url: "{{ monarcfo_release_url }}"
+    dest: "/var/lib/monarc/releases/{{ monarcfo_release_url | basename }}"
+    owner: monarc
+    group: monarc
+  environment:
+    http_proxy: "{{ http_proxy | default('') }}"
+    https_proxy: "{{ https_proxy | default('') }}"
+
+- name: create release directory
+  file:
+    state: directory
+    dest: "/var/lib/monarc/releases/{{ monarcfo_release_url | basename | replace('.tar.gz', '') }}"
+
+- name: unarchive release
+  unarchive:
+    remote_src: yes
+    src: "/var/lib/monarc/releases/{{ monarcfo_release_url | basename }}"
+    dest: "/var/lib/monarc/releases/{{ monarcfo_release_url | basename | replace('.tar.gz', '') }}"
+
+- name: create release symlink
+  file:
+    state: link
+    src: "/var/lib/monarc/releases/{{ monarcfo_release_url | basename | replace('.tar.gz', '') }}"
+    dest: "/var/lib/monarc/fo"
+  register: _updated_release_symlink
+
+- name: create data directory symlink
+  file:
+    state: link
+    dest: "/var/lib/monarc/fo/data"
+    src: "/var/lib/monarc/fo-data"
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^    
+
+########################################
+# Create client config file
+- name: client config file
+  template:
+    src: client_config.php.j2
+    dest: "/var/lib/monarc/fo/config/autoload/local.php"
+    owner: www-data
+    mode: 0600
+  register: _client_config
+  become: True
+
+- name: deleting client cache
+  file:
+    path: /var/lib/monarc/fo/data/cache
+    state: absent
+  # local.php config is also cached
+  when: ( monarcfo_clean_cache | bool ) or ( _client_config is defined and _client_config is changed )
+  become: True
+
+- name: create client cache dir
+  file:
+    name: "/var/lib/monarc/fo/data/cache"
+    state: directory
+    owner: www-data
+  become: True
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+########################################################################
+# Configuring MariaDB database and related content
+- name: "MariaDB: 'monarc_cli' database creation"
+  mysql_db:
+    name: "monarc_cli"
+    config_file: ""
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  become: True
+
+- name: "MariaDB: 'monarc_common' database creation"
+  mysql_db:
+    name: "monarc_common"
+    config_file: ""
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  become: True
+
+- name: "MariaDB: creating user and granting permissions"
+  mysql_user:
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+    priv: "monarc_cli.*:ALL/monarc_common.*:ALL"
+    config_file: ""
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  become: True
+
+# - name: "MariaDB/Init DB: running migrations for `Core/migrations`"
+#   shell: "php ./vendor/robmorgan/phinx/bin/phinx migrate -c ./module/Monarc/Core/migrations/phinx.php"
+#   args:
+#     chdir: /var/lib/monarc/fo
+#   register: _client_upgrade
+#   changed_when: "'migrating' in _client_upgrade.stdout"
+
+# - name: "MariaDB/Init DB: running migrations for `FrontOffice/migrations`"
+#   shell: "php ./vendor/robmorgan/phinx/bin/phinx migrate -c ./module/Monarc/FrontOffice/migrations/phinx.php"
+#   args:
+#     chdir: /var/lib/monarc/fo
+#   register: _client_upgrade
+#   changed_when: "'migrating' in _client_upgrade.stdout"
+
+# - name: "MariaDB/Seed DB: running seed:run for `Core/migrations`"
+#   shell: "php ./vendor/robmorgan/phinx/bin/phinx seed:run -c ./module/Monarc/Core/migrations/phinx.php"
+#   args:
+#     chdir: /var/lib/monarc/fo
+#   register: _client_upgrade
+#   changed_when: "'migrating' in _client_upgrade.stdout"
+
+# - name: "MariaDB/Seed DB: running seed:run for `FrontOffice/migrations`"
+#   shell: "php ./vendor/robmorgan/phinx/bin/phinx seed:run -c ./module/Monarc/FrontOffice/migrations/phinx.php"
+#   args:
+#     chdir: /var/lib/monarc/fo
+#   register: _client_upgrade
+#   changed_when: "'migrating' in _client_upgrade.stdout"
+
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+########################################################################
+# Configuring Apache Virtual-host
+- name: apache mod rewrite
+  apache2_module:
+    name: rewrite
+  become: True
+  notify:
+    - apache2ctl configtest
+    - restart apache
+
+- name: list currently enabled vhosts
+  find:
+    paths:
+      - /etc/apache2/sites-enabled/
+    depth: 2
+    patterns: "*.conf"
+    file_type: link
+  register: _enabled_vhosts
+  tags: always
+
+- name: client apache configuration
+  template:
+    src: client_apache.conf.j2
+    dest: "/etc/apache2/sites-available/{{ www_vhname }}.conf"
+    owner: root
+  become: True
+
+- name: enable apache conf
+  command: "/usr/sbin/a2ensite {{ www_vhname }}.conf"
+  changed_when: "'Enabling site' in _a2ensite.stdout"
+  register: _a2ensite
+  become: True
+  notify:
+    - apache2ctl configtest
+    - reload apache
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+########################################################################
+# Configuring *unknown* (...by me!) things....
+- name: deleting client Doctrine proxy cache
+  file:
+    path: /var/lib/monarc/fo/data/DoctrineORMModule/
+    state: absent
+  when: ( monarcfo_clean_cache | bool ) or ( _updated_release_symlink is changed )
+  become: True
+
+- name: deleting client LazyServices proxy cache
+  file:
+    path: /var/lib/monarc/fo/data/LazyServices/
+    state: absent
+  when: ( monarcfo_clean_cache | bool ) or ( _updated_release_symlink is changed )
+  become: True
+
+- name: create client cache dir
+  file:
+    name: "/var/lib/monarc/fo/data/cache"
+    state: directory
+    owner: www-data
+  become: True
+
+- name: create client Doctrine cache dir
+  file:
+    name: "/var/lib/monarc/fo/data/DoctrineORMModule/Proxy"
+    state: directory
+    owner: www-data
+  become: True
+
+- name: client cache upgrade
+  file:
+    path: "/var/lib/monarc/fo/data/upgrade"
+    owner: www-data
+    state: touch
+  when: ( monarcfo_clean_cache | bool ) or ( _updated_release_symlink is changed )
+  become: True
+
+- name: create client Proxy dir
+  file:
+    name: "/var/lib/monarc/fo/data/LazyServices/Proxy"
+    state: directory
+    owner: www-data
+  become: True
+
+- name: create client file import directty
+  file:
+    name: "/var/lib/monarc/fo/import/files"
+    state: directory
+    owner: www-data
+  become: True
+
+- name: set owner of deliveries
+  file:
+    path: "/var/lib/monarc/fo/deliveries"
+    recurse: yes
+    owner: www-data
+    group: www-data
+  become: True
+

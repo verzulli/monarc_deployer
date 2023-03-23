@@ -1,0 +1,9 @@
+terms: "For Terms of Services, please, check at https://www.garrlab.it/monarc-tos"
+salt: "5ac5c243be44630b5f77fc4729451f76da7a5afad60b20be9e2f079553e37d2a"
+isBackgroundProcessActive: false
+monarcfo_clean_cache: false
+statsToken: "aRandomApiKey"
+monarc_enable_statsservice: false
+monarc_statsservice_host: "changeme.dummy.noname.com"
+monarc_statsservice_port: 7000
+monarc_statsservice_url: '/some/stat/random/path'
