@@ -107,16 +107,17 @@
 
 ########################################################################
 # Configuring MariaDB database and related content
-- name: "MariaDB: 'monarc_cli' database creation"
-  mysql_db:
-    name: "monarc_cli"
-    config_file: ""
-    login_unix_socket: /var/run/mysqld/mysqld.sock
-  become: True
-
 - name: "MariaDB: 'monarc_common' database creation"
   mysql_db:
     name: "monarc_common"
+    config_file: ""
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  become: True
+  register: db_common_created
+
+- name: "MariaDB: 'monarc_cli' database creation"
+  mysql_db:
+    name: "monarc_cli"
     config_file: ""
     login_unix_socket: /var/run/mysqld/mysqld.sock
   become: True
@@ -130,19 +131,41 @@
     login_unix_socket: /var/run/mysqld/mysqld.sock
   become: True
 
-# - name: "MariaDB/Init DB: running migrations for `Core/migrations`"
-#   shell: "php ./vendor/robmorgan/phinx/bin/phinx migrate -c ./module/Monarc/Core/migrations/phinx.php"
-#   args:
-#     chdir: /var/lib/monarc/fo
-#   register: _client_upgrade
-#   changed_when: "'migrating' in _client_upgrade.stdout"
+- name: "MariaDB: Creating monarc_common structure (tables & co.)"
+  mysql_db:
+    state: import
+    chdir: "/var/lib/monarc/fo"
+    name: "monarc_common"
+    target: db-bootstrap/monarc_structure.sql
+    config_file: ""
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  when: db_common_created.changed
 
-# - name: "MariaDB/Init DB: running migrations for `FrontOffice/migrations`"
-#   shell: "php ./vendor/robmorgan/phinx/bin/phinx migrate -c ./module/Monarc/FrontOffice/migrations/phinx.php"
-#   args:
-#     chdir: /var/lib/monarc/fo
-#   register: _client_upgrade
-#   changed_when: "'migrating' in _client_upgrade.stdout"
+- name: "MariaDB: Populating initial data to monarc_common"
+  mysql_db:
+    state: import
+    chdir: "/var/lib/monarc/fo"
+    name: "monarc_common"
+    target: db-bootstrap/monarc_data.sql
+    config_file: ""
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  when: db_common_created.changed
+
+- name: "MariaDB/Init DB: running migrations for `Core/migrations`"
+  shell: "php ./vendor/robmorgan/phinx/bin/phinx migrate -c ./module/Monarc/Core/migrations/phinx.php"
+  args:
+    chdir: /var/lib/monarc/fo
+  when: db_common_created.changed
+  register: _co_migrate_done
+  changed_when: "'migrated' in _co_migrate_done.stdout"
+
+- name: "MariaDB/Init DB: running migrations for `FrontOffice/migrations`"
+  shell: "php ./vendor/robmorgan/phinx/bin/phinx migrate -c ./module/Monarc/FrontOffice/migrations/phinx.php"
+  args:
+    chdir: /var/lib/monarc/fo
+  when: db_common_created.changed
+  register: _fo_migrate_done
+  changed_when: "'migrated' in _fo_migrate_done.stdout"
 
 # - name: "MariaDB/Seed DB: running seed:run for `Core/migrations`"
 #   shell: "php ./vendor/robmorgan/phinx/bin/phinx seed:run -c ./module/Monarc/Core/migrations/phinx.php"
@@ -151,12 +174,12 @@
 #   register: _client_upgrade
 #   changed_when: "'migrating' in _client_upgrade.stdout"
 
-# - name: "MariaDB/Seed DB: running seed:run for `FrontOffice/migrations`"
-#   shell: "php ./vendor/robmorgan/phinx/bin/phinx seed:run -c ./module/Monarc/FrontOffice/migrations/phinx.php"
-#   args:
-#     chdir: /var/lib/monarc/fo
-#   register: _client_upgrade
-#   changed_when: "'migrating' in _client_upgrade.stdout"
+- name: "MariaDB/Seed DB: running seed:run for `FrontOffice/migrations`"
+  shell: "php ./vendor/robmorgan/phinx/bin/phinx seed:run -c ./module/Monarc/FrontOffice/migrations/phinx.php"
+  args:
+    chdir: /var/lib/monarc/fo
+  register: _fo_seed_done
+  changed_when: "'seeded' in _fo_seed_done.stdout"
 
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -13,7 +13,7 @@ The goal of this project is to help users deploying a _small_ instance of [Monar
 
 In short, you simply need to deploy a single FO (FrontOffice), just to start scratching the surface of your RiskAssessment process.
 
-In such a case, this project include a set of _ansible_ playbooks and roles  that you can fire towards a freshly launched Ubuntu _focal_ (20.04), to get back a running Monarc FrontOffice instance, up-and-running.
+In such a case, this project include a set of _ansible_ playbooks and roles  that you can fire towards a freshly launched Ubuntu _jammy_ (22.04), to get back a running Monarc FrontOffice instance, up-and-running.
 
     Please note that this project is still **UNDER CONSTRUCTION** so, at the moment, it **DOESN'T** work!
 
@@ -25,7 +25,7 @@ To get your MonarcFO up-and-running, you simply need to:
 
 2. set a MySQL password, by creating a `_vault.yml` file. A sample `_vault.yml.sample` is provided, so you can simply adapt it;
 
-3. update the `hosts` file, by setting proper IP address of the freshly installed Ubuntu _focal_ box. Eg.:
+3. update the `hosts` file, by setting proper IP address of the freshly installed Ubuntu _jammy_ box. Eg.:
 ~~~
 [verzulli@XPS monarc_deployer]$ cat hosts
 [all:vars]
