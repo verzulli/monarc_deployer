@@ -180,6 +180,7 @@
     chdir: /var/lib/monarc/fo
   register: _fo_seed_done
   changed_when: "'seeded' in _fo_seed_done.stdout"
+  when: db_common_created.changed
 
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
