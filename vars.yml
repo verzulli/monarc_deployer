@@ -1,8 +1,0 @@
-monarcfo_version: "v2.12.6"
-monarcfo_release_url: "https://github.com/monarc-project/MonarcAppFO/releases/download/{{ monarcfo_version }}/MonarcAppFO-{{ monarcfo_version }}.tar.gz"
-www_vhname: "monarc.garr.lab"
-db_user: "mon_user"
-instance_name: "monarc@GARRLab"
-emailFrom: "monarc-noreply@garrlab.it"
-twoFactorAuthEnforced: true
-

@@ -7,5 +7,4 @@
       tags: fo
   vars_files:
     - _vault.yml
-    - vars.yml        
 
