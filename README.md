@@ -15,8 +15,6 @@ In short, you simply need to deploy a single FO (FrontOffice), just to start scr
 
 In such a case, this project include a set of _ansible_ playbooks and roles  that you can fire towards a freshly launched Ubuntu _jammy_ (22.04), to get back a running Monarc FrontOffice instance, up-and-running.
 
-    Please note that this project is still **UNDER CONSTRUCTION** so, at the moment, it **DOESN'T** work!
-
 2 - How this works?
 ===================
 To get your MonarcFO up-and-running, you simply need to:
